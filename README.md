@@ -245,7 +245,6 @@ This script is **highly optimized**:
 - ✅ **Server-side validation** - prevents exploits and cheating
 - ✅ **GlobalState sync** - all players see the same robbery status
 
-Expected resource usage: **< 0.05ms**
 
 ---
 
