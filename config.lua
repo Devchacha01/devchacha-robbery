@@ -6,9 +6,8 @@ Config.Framework = 'rsg' -- rsg or vorp (currently optimized for RSG)
 
 -- Items Required
 Config.Items = {
-    Lockpick = 'lockpick',
-    AdvancedLockpick = 'advancedlockpick',
-    Dynamite = 'tnt', -- used for banks/safes
+    Lockpick = 'lockpick',      -- used for store robberies (consumed on use)
+    Dynamite = 'tnt',           -- used for bank vaults (consumed on use)
 }
 
 -- Police Settings
@@ -18,35 +17,21 @@ Config.Police = {
     Jobs = { 'sheriff', 'leo', 'police', 'marshal' }
 }
 
--- Cooldowns (in minutes)
-Config.Cooldowns = {
-    Store = 120, -- 2 hours (120 mins)
-    Bank = 120, -- 2 hours
-    SearchRegister = 5 -- Cooldown for milking the same register
-}
+-- Robbery Behavior: Once robbed, locations stay looted until server/script restart
+-- No time-based cooldowns - this encourages one robbery per server session
 
 Config.RobberyDuration = 5 -- Minutes to wait before looting store
 Config.BankRobberyDuration = 10 -- Minutes to wait before looting bank
 
 -- Minigame Difficulty (ox_lib skill check)
 Config.Difficulty = {
-    StoreRegister = {'easy', 'easy', 'medium'}, -- 3 checks
-    SafeCrack = {'medium', 'medium', 'hard'},
-    DoorBreach = {'easy', 'medium'}, -- For store back doors
-    BankDoor = {'medium', 'hard', 'hard'}, -- Harder for banks
-    BankDrill = {'hard', 'hard', 'hard', 'hard'} -- Not used for dynamite, but for future expansion
+    StoreRegister = {'easy', 'easy', 'medium'}, -- Used for store lockpicking
+    BankDoor = {'medium', 'hard', 'hard'},      -- Used for breaching bank doors
 }
 
 -- Rewards
 Config.Rewards = {
-    StoreRegister = {
-        minCash = 10, maxCash = 40,
-        items = { -- chance is 0-100
-            { name = 'candy', amount = 1, chance = 50 },
-            { name = 'bread', amount = 1, chance = 30 }
-        }
-    },
-    StoreSafe = {
+    Store = { -- Standard store robbery loot
         minCash = 100, maxCash = 300,
         items = {
             { name = 'gold_ring', amount = 1, chance = 80 },
@@ -79,14 +64,6 @@ Config.Stores = {
         registers = {
             { coords = vector3(-324.24, 804.08, 117.98), radius = 1.5 }
         },
-        safes = {
-             -- Example Safe Coords (Fill in with actual coords)
-             { coords = vector3(-325.0, 805.0, 117.93), radius = 1.5 } 
-        },
-        doors = {
-            -- Example Door to breach (Fill in with actual Back Door coords)
-            { coords = vector3(-326.0, 806.0, 118.0), radius = 2.0 } 
-        },
         type = 'general'
     },
     ['RhodesGeneral'] = {
@@ -94,12 +71,6 @@ Config.Stores = {
         coords = vector3(1328.03, -1293.70, 77.07),
         registers = {
             { coords = vector3(1330.34, -1293.58, 77.02), radius = 1.5 }
-        },
-        safes = {
-             -- Add safe coords
-        },
-        doors = {
-            -- Add door coords
         },
         type = 'general'
     },
@@ -109,8 +80,6 @@ Config.Stores = {
         registers = {
             { coords = vector3(2828.26, -1320.1, 46.8), radius = 1.5 }
         },
-        safes = {},
-        doors = {},
         type = 'general'
     },
     ['StrawberryGeneral'] = {
@@ -119,28 +88,22 @@ Config.Stores = {
         registers = {
             { coords = vector3(-1789.33, -387.55, 160.33), radius = 1.5 }
         },
-        safes = {},
-        doors = {},
         type = 'general'
     },
     ['BlackwaterGeneral'] = {
         label = "Blackwater General Store",
         coords = vector3(-785.47, -1323.85, 43.9),
         registers = {
-             { coords = vector3(-785.49, -1322.16, 43.88), radius = 1.5 }
+            { coords = vector3(-785.49, -1322.16, 43.88), radius = 1.5 }
         },
-        safes = {},
-        doors = {},
         type = 'general'
     },
     ['ArmadilloGeneral'] = {
         label = "Armadillo General Store",
         coords = vector3(-3687.2, -2622.31, -13.3),
         registers = {
-             { coords = vector3(-3687.3, -2622.49, -13.43), radius = 1.5 }
+            { coords = vector3(-3687.3, -2622.49, -13.43), radius = 1.5 }
         },
-        safes = {},
-        doors = {},
         type = 'general'
     },
     ['TumbleweedGeneral'] = {
@@ -149,8 +112,6 @@ Config.Stores = {
         registers = {
             { coords = vector3(-5486.36, -2937.69, -0.4), radius = 1.5 }
         },
-        safes = {},
-        doors = {},
         type = 'general'
     }
 }

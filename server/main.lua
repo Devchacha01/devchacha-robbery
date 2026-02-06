@@ -1,8 +1,20 @@
 local RSGCore = exports['rsg-core']:GetCoreObject()
 
--- Handlers
-local Cooldowns = {} -- Tracks time (os.time)
-local RobberyStates = {} -- Tracks state ('blown', etc) of locations to sync users
+-- Robbery states are reset on script/server restart
+-- Once robbed = stays looted until restart
+
+-- Clear GlobalState on resource start to prevent exploits
+AddEventHandler('onResourceStart', function(resourceName)
+    if GetCurrentResourceName() ~= resourceName then return end
+    GlobalState.devchacha_robbery_states = {}
+    print('[devchacha-robbery] Resource started - GlobalState cleared')
+end)
+
+-- Time sync for clients (os.time doesn't work on client)
+RegisterNetEvent('devchacha-robbery:server:requestTime', function()
+    local src = source
+    TriggerClientEvent('devchacha-robbery:client:syncTime', src, os.time())
+end)
 
 -----------------------------------------------------------------------
 -- FUNCTIONS
@@ -42,22 +54,15 @@ RegisterNetEvent('devchacha-robbery:server:setVaultState', function(bankId, vaul
         -- This means player successfully planted TNT and it exploded
         -- We now start the timer for 'unlocking'
         local unlockTime = os.time() + (Config.BankRobberyDuration * 60)
-         
-        RobberyStates[key] = { state = 'unlocking', unlockTime = unlockTime }
 
         local currentStates = GlobalState.devchacha_robbery_states or {}
         currentStates[key] = { state = 'unlocking', unlockTime = unlockTime }
         GlobalState.devchacha_robbery_states = currentStates
 
-        -- SET 2 HOUR COOLDOWN IMMEDIATELY so no one else can rob this bank
-        local cdKey = 'bank_' .. bankId .. '_' .. vaultId
-        Cooldowns[cdKey] = os.time() + (Config.Cooldowns.Bank * 60)
-
         TriggerClientEvent('devchacha-robbery:client:syncExplosion', -1, bankId, vaultId)
         Notify(src, 'Vault blown! But the heat is too high. Looting available in ' .. Config.BankRobberyDuration .. ' minutes.', 'inform')
     else
         -- Just in case we use other states
-        RobberyStates[key] = state
         local currentStates = GlobalState.devchacha_robbery_states or {}
         currentStates[key] = state
         GlobalState.devchacha_robbery_states = currentStates
@@ -66,31 +71,50 @@ end)
 
 RSGCore.Functions.CreateCallback('devchacha-robbery:server:checkBankState', function(source, cb, bankId, vaultId)
     local key = bankId .. '_' .. vaultId
+    local currentTime = os.time()
+    
     local currentStates = GlobalState.devchacha_robbery_states or {}
     local data = currentStates[key]
     
-    if not data then return cb(nil) end
-    
-    if type(data) == 'table' and data.state == 'unlocking' then
-        if os.time() >= data.unlockTime then
-            cb('open') -- Time passed, now lootable
-        else
-            local remaining = data.unlockTime - os.time()
-            cb('unlocking', remaining)
-        end
-    else
-        cb(data) -- e.g. nil or 'done'
+    -- Check if already looted (stays until restart)
+    if data == 'looted' then
+        return cb('looted')
     end
+    
+    -- Check if we're in 'unlocking' phase
+    if data and type(data) == 'table' and data.state == 'unlocking' then
+        if currentTime >= data.unlockTime then
+            return cb('open')
+        else
+            local remaining = data.unlockTime - currentTime
+            return cb('unlocking', remaining)
+        end
+    end
+    
+    -- Not robbed yet = fresh
+    cb(nil)
 end)
 
 RegisterNetEvent('devchacha-robbery:server:startStoreRobbery', function(storeId, label)
     local src = source
     local key = 'store_' .. storeId
+    local currentStates = GlobalState.devchacha_robbery_states or {}
+    
+    -- Check if already looted (stays until restart)
+    if currentStates[key] == 'looted' then
+        Notify(src, 'This store has already been robbed!', 'error')
+        return
+    end
+    
+    -- Check if robbery already in progress
+    if currentStates[key] and type(currentStates[key]) == 'table' then
+        Notify(src, 'Robbery already in progress here!', 'error')
+        return
+    end
     
     -- Set Unlock Timer
     local unlockTime = os.time() + (Config.RobberyDuration * 60)
     
-    local currentStates = GlobalState.devchacha_robbery_states or {}
     currentStates[key] = { state = 'unlocking', unlockTime = unlockTime }
     GlobalState.devchacha_robbery_states = currentStates
     
@@ -104,12 +128,12 @@ end)
 
 RSGCore.Functions.CreateCallback('devchacha-robbery:server:canRob', function(source, cb, data)
     local src = source
-    local type = data.type 
+    local robType = data.type 
     local id = data.id 
     local subId = data.subId 
 
     -- Check Police
-    local policeNeeded = (type == 'bank') and Config.Police.RequiredForBank or Config.Police.RequiredForStore
+    local policeNeeded = (robType == 'bank') and Config.Police.RequiredForBank or Config.Police.RequiredForStore
     local policeCount = GetPoliceCount()
 
     if policeCount < policeNeeded then
@@ -117,37 +141,51 @@ RSGCore.Functions.CreateCallback('devchacha-robbery:server:canRob', function(sou
         return cb(false)
     end
 
-    -- Check Cooldowns
-    local cdKey = type .. '_' .. id .. (subId and ('_' .. subId) or '')
+    -- Build state key
+    local stateKey = nil
+    if robType == 'bank' then
+        stateKey = id .. '_' .. subId
+    else
+        stateKey = 'store_' .. id
+    end
     
+    local currentStates = GlobalState.devchacha_robbery_states or {}
+    local stateData = currentStates[stateKey]
     local currentTime = os.time()
     
-    if Cooldowns[cdKey] and Cooldowns[cdKey] > currentTime then
-        local remaining = Cooldowns[cdKey] - currentTime
-        local mins = math.ceil(remaining/60)
-        Notify(src, 'This spot was recently robbed. Wait ' .. mins .. ' minutes.', 'error')
+    -- Check if already looted
+    if stateData == 'looted' then
+        Notify(src, 'This location has already been robbed!', 'error')
         return cb(false)
     end
+    
+    -- Check if vault/store is OPEN for looting (unlockTime passed)
+    local isOpenForLooting = false
+    if stateData and type(stateData) == 'table' and stateData.state == 'unlocking' then
+        if stateData.unlockTime and currentTime >= stateData.unlockTime then
+            isOpenForLooting = true
+        end
+    end
 
-    -- Check Items
+    -- Check Items (skip if open for looting - player already used item)
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return cb(false) end
 
-    local requiredItem = nil
-    if type == 'bank' then
-        requiredItem = Config.Items.Dynamite
-    else
-        requiredItem = Config.Items.Lockpick
-    end
+    if not isOpenForLooting then
+        local requiredItem = nil
+        if robType == 'bank' then
+            requiredItem = Config.Items.Dynamite
+        else
+            requiredItem = Config.Items.Lockpick
+        end
 
-    local hasItem = Player.Functions.GetItemByName(requiredItem)
-    if not hasItem then
-        Notify(src, 'You need a ' .. requiredItem .. '!', 'error')
-        return cb(false)
-    end
+        local hasItem = Player.Functions.GetItemByName(requiredItem)
+        if not hasItem then
+            Notify(src, 'You need a ' .. requiredItem .. '!', 'error')
+            return cb(false)
+        end
 
-    -- Remove item logic (if consumable)
-    if type == 'bank' then
+        -- Remove item (consumed on attempt - pass or fail)
         Player.Functions.RemoveItem(requiredItem, 1)
         TriggerClientEvent('inventory:client:ItemBox', src, RSGCore.Shared.Items[requiredItem], "remove")
     end
@@ -181,18 +219,28 @@ end)
 
 RSGCore.Functions.CreateCallback('devchacha-robbery:server:checkStoreState', function(source, cb, storeId)
     local key = 'store_' .. storeId
+    local currentTime = os.time()
+    
     local currentStates = GlobalState.devchacha_robbery_states or {}
     local data = currentStates[key]
     
-    if not data then return cb(nil) end
-    
-    -- Check time
-    if os.time() >= data.unlockTime then
-        cb('open')
-    else
-        local remaining = data.unlockTime - os.time()
-        cb('unlocking', remaining)
+    -- Check if already looted (stays until restart)
+    if data == 'looted' then
+        return cb('looted')
     end
+    
+    -- Check if we're in 'unlocking' phase
+    if data and type(data) == 'table' and data.state == 'unlocking' and data.unlockTime then
+        if currentTime >= data.unlockTime then
+            return cb('open')
+        else
+            local remaining = data.unlockTime - currentTime
+            return cb('unlocking', remaining)
+        end
+    end
+    
+    -- Not robbed yet = fresh
+    cb(nil)
 end)
 
 -----------------------------------------------------------------------
@@ -204,30 +252,56 @@ RegisterNetEvent('devchacha-robbery:server:payout', function(data)
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return end
 
-    -- Verify cooldown
     local currentTime = os.time()
-    local type = data.type
+    local robType = data.type
     local id = data.id 
     local subId = data.subId
-    local cdKey = type .. '_' .. id .. (subId and ('_' .. subId) or '')
-
-    if Cooldowns[cdKey] and Cooldowns[cdKey] > currentTime then
+    
+    -- Build state key
+    local stateKey = nil
+    if robType == 'bank' then
+        stateKey = id .. '_' .. subId
+    else
+        stateKey = 'store_' .. id
+    end
+    
+    -- ANTI-EXPLOIT: Check if vault/store is actually OPEN for looting
+    local currentStates = GlobalState.devchacha_robbery_states or {}
+    local stateData = currentStates[stateKey]
+    
+    -- Must be in 'unlocking' state with timer expired
+    if stateData == 'looted' then
+        Notify(src, 'Someone already collected the loot!', 'error')
+        print('[devchacha-robbery] BLOCKED: Player ' .. src .. ' tried to loot already-looted ' .. stateKey)
         return
     end
-
-    -- Set Cooldown
-    local cdDuration = (type == 'bank') and (Config.Cooldowns.Bank * 60) or (Config.Cooldowns.Store * 60)
-    -- Unified Store Robbery uses 'Store' cooldown now, not SearchRegister
     
-    Cooldowns[cdKey] = currentTime + cdDuration
+    if not stateData or type(stateData) ~= 'table' or stateData.state ~= 'unlocking' then
+        Notify(src, 'Nothing to loot here!', 'error')
+        print('[devchacha-robbery] BLOCKED: Player ' .. src .. ' tried to loot ' .. stateKey .. ' with invalid state')
+        return
+    end
+    
+    -- Check if timer has actually expired
+    if stateData.unlockTime and currentTime < stateData.unlockTime then
+        local remaining = stateData.unlockTime - currentTime
+        Notify(src, 'Wait ' .. math.ceil(remaining/60) .. ' more minutes!', 'error')
+        print('[devchacha-robbery] BLOCKED: Player ' .. src .. ' tried to loot ' .. stateKey .. ' before timer expired')
+        return
+    end
+    
+    -- IMMEDIATELY mark as looted BEFORE giving rewards (prevents race condition)
+    currentStates[stateKey] = 'looted'
+    GlobalState.devchacha_robbery_states = currentStates
+    print('[devchacha-robbery] Location ' .. stateKey .. ' marked as LOOTED')
 
     -- Calculate Rewards
     local rewardsCfg = nil
-    if type == 'bank' then
+    if robType == 'bank' then
         rewardsCfg = Config.Rewards.BankVault
     else 
         -- Unified reward for store (combines cash and maybe items)
-        rewardsCfg = Config.Rewards.StoreSafe -- Use Safe rewards as base for the "Main Loot"
+        rewardsCfg = Config.Rewards.Store
     end
 
     -- Give Cash
@@ -238,7 +312,10 @@ RegisterNetEvent('devchacha-robbery:server:payout', function(data)
     local itemsGot = {}
     if rewardsCfg.items then
         for _, itemInfo in ipairs(rewardsCfg.items) do
-            if math.random(0, 100) <= itemInfo.chance then
+            local roll = math.random(0, 100)
+            print('[devchacha-robbery] Item Roll: ' .. itemInfo.name .. ' - Rolled: ' .. roll .. ' / Needed: ' .. itemInfo.chance)
+            
+            if roll <= itemInfo.chance then
                 local amount = 1
                 if type(itemInfo.amount) == 'table' then
                     amount = math.random(itemInfo.amount[1], itemInfo.amount[2])
@@ -246,12 +323,21 @@ RegisterNetEvent('devchacha-robbery:server:payout', function(data)
                     amount = itemInfo.amount
                 end
                 
-                if Player.Functions.AddItem(itemInfo.name, amount) then
+                print('[devchacha-robbery] Trying to give: ' .. amount .. 'x ' .. itemInfo.name)
+                
+                local success = Player.Functions.AddItem(itemInfo.name, amount)
+                if success then
                     table.insert(itemsGot, amount .. 'x ' .. itemInfo.name)
                     TriggerClientEvent('inventory:client:ItemBox', src, RSGCore.Shared.Items[itemInfo.name], "add")
+                    print('[devchacha-robbery] SUCCESS: Gave ' .. amount .. 'x ' .. itemInfo.name)
+                else
+                    print('[devchacha-robbery] FAILED: Could not give ' .. itemInfo.name .. ' - Item may not exist or inventory full')
+                    Notify(src, 'Could not receive ' .. itemInfo.name .. ' (inventory full?)', 'error')
                 end
             end
         end
+    else
+        print('[devchacha-robbery] No items configured for this reward type')
     end
 
     -- Notify
@@ -262,7 +348,7 @@ RegisterNetEvent('devchacha-robbery:server:payout', function(data)
         Notify(src, 'You got $' .. cash, 'success')
     end
     
-    -- Reset state if needed (state remains until restart or overwritten by new state in future)
+    print('[devchacha-robbery] Payout complete for ' .. stateKey)
 end)
 
 RegisterNetEvent('devchacha-robbery:server:policeAlert', function(locName)

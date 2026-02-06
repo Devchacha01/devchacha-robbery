@@ -1,9 +1,7 @@
 local RSGCore = exports['rsg-core']:GetCoreObject()
--- We no longer rely solely on LocalBankStates for prompt logic
--- We check GlobalState.devchacha_robbery_states for 'blown' status
 
 -----------------------------------------------------------------------
--- ANIMATIONS & UTILS
+-- UTILITIES & ANIMATIONS
 -----------------------------------------------------------------------
 
 local function loadAnimDict(dict)
@@ -18,11 +16,138 @@ local function PlayAnimation(ped, dict, name, duration, flag)
     TaskPlayAnim(ped, dict, name, 2.0, 2.0, duration or -1, flag or 1, 0, false, false, false)
 end
 
-local function GetVaultState(bankId, vaultId)
-    local states = GlobalState.devchacha_robbery_states or {}
-    local key = bankId .. '_' .. vaultId
-    return states[key] -- e.g. 'blown'
+local function FormatTime(seconds)
+    local mins = math.floor(seconds / 60)
+    local secs = seconds % 60
+    return string.format("%02d:%02d", mins, secs)
 end
+
+-----------------------------------------------------------------------
+-- GLOBAL TIMER DISPLAY (OPTIMIZED - ox_lib TextUI, no frame loop)
+-----------------------------------------------------------------------
+
+-- We get server time via event since os.time() doesn't work on client
+local ServerTimeOffset = 0
+
+RegisterNetEvent('devchacha-robbery:client:syncTime', function(serverTime)
+    ServerTimeOffset = serverTime - (GetGameTimer() / 1000)
+end)
+
+local function GetServerTime()
+    return math.floor((GetGameTimer() / 1000) + ServerTimeOffset)
+end
+
+-- Request server time on start
+CreateThread(function()
+    TriggerServerEvent('devchacha-robbery:server:requestTime')
+end)
+
+-- OPTIMIZED: Single thread checking every 1 second, uses ox_lib textUI (no frame loop needed)
+local CurrentDisplayState = nil -- Track what we're currently showing
+
+CreateThread(function()
+    while true do
+        Wait(1000) -- Check every 1 second (NOT every frame!)
+        
+        local playerCoords = GetEntityCoords(PlayerPedId())
+        local states = GlobalState.devchacha_robbery_states or {}
+        local serverTime = GetServerTime()
+        local newDisplayState = nil
+        
+        -- Check Banks
+        for bankId, bankData in pairs(Config.Banks or {}) do
+            if bankData.vaults and not newDisplayState then
+                for vaultId, vault in ipairs(bankData.vaults) do
+                    local key = bankId .. '_' .. vaultId
+                    local data = states[key]
+                    
+                    if data and type(data) == 'table' and data.state == 'unlocking' and data.unlockTime then
+                        local dist = #(playerCoords - vault.coords)
+                        if dist < 5.0 then
+                            local remaining = data.unlockTime - serverTime
+                            if remaining > 0 then
+                                newDisplayState = { type = 'bank_countdown', time = FormatTime(remaining) }
+                            else
+                                newDisplayState = { type = 'bank_ready' }
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- Check Stores (only if no bank found)
+        if not newDisplayState then
+            for storeId, storeData in pairs(Config.Stores or {}) do
+                local key = 'store_' .. storeId
+                local data = states[key]
+                
+                if data and type(data) == 'table' and data.state == 'unlocking' and data.unlockTime then
+                    local displayCoords = storeData.coords or (storeData.registers and storeData.registers[1] and storeData.registers[1].coords)
+                    if displayCoords then
+                        local dist = #(playerCoords - displayCoords)
+                        if dist < 5.0 then
+                            local remaining = data.unlockTime - serverTime
+                            if remaining > 0 then
+                                newDisplayState = { type = 'store_countdown', time = FormatTime(remaining) }
+                            else
+                                newDisplayState = { type = 'store_ready' }
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- Only update UI if state changed (prevents flickering and unnecessary calls)
+        local stateChanged = false
+        if newDisplayState == nil and CurrentDisplayState ~= nil then
+            stateChanged = true
+        elseif newDisplayState ~= nil and CurrentDisplayState == nil then
+            stateChanged = true
+        elseif newDisplayState and CurrentDisplayState then
+            if newDisplayState.type ~= CurrentDisplayState.type or newDisplayState.time ~= CurrentDisplayState.time then
+                stateChanged = true
+            end
+        end
+        
+        if stateChanged then
+            if newDisplayState == nil then
+                lib.hideTextUI()
+            else
+                local text, bgColor
+                if newDisplayState.type == 'bank_countdown' then
+                    text = '🔴 VAULT COOLING: ' .. newDisplayState.time
+                    bgColor = '#8B0000'
+                elseif newDisplayState.type == 'bank_ready' then
+                    text = '🟢 VAULT OPEN - COLLECT LOOT!'
+                    bgColor = '#006400'
+                elseif newDisplayState.type == 'store_countdown' then
+                    text = '🟠 SAFE UNLOCKING: ' .. newDisplayState.time
+                    bgColor = '#CC5500'
+                elseif newDisplayState.type == 'store_ready' then
+                    text = '🟢 SAFE OPEN - COLLECT LOOT!'
+                    bgColor = '#006400'
+                end
+                
+                lib.showTextUI(text, {
+                    position = 'top-center',
+                    style = {
+                        backgroundColor = bgColor,
+                        color = 'white',
+                        padding = '10px 20px',
+                        borderRadius = '8px',
+                        fontSize = '18px',
+                        fontWeight = 'bold'
+                    }
+                })
+            end
+            CurrentDisplayState = newDisplayState
+        end
+    end
+end)
 
 -----------------------------------------------------------------------
 -- ROBBERY LOGIC
@@ -33,28 +158,36 @@ local function RobStore(storeId, regId, data)
     
     -- Check Current State via Callback
     RSGCore.Functions.TriggerCallback('devchacha-robbery:server:checkStoreState', function(state, remaining)
-        if state == 'open' then
-             -- LOOT PHASE
-            PlayAnimation(ped, "script_common@jail_cell@unlock@key", "action", -1, 1)
-            if lib.progressBar({
-                duration = 5000,
-                label = 'Grabbing Loot...',
-                useWhileDead = false,
-                canCancel = true,
-                disable = { move = true, car = true, combat = true },
-            }) then
-                ClearPedTasks(ped)
-                TriggerServerEvent('devchacha-robbery:server:payout', {
-                    type = 'store',
-                    id = storeId,
-                    subId = regId, -- pass regId though simplified
-                    label = data.label,
-                    register = false -- Handled as main robbery now
-                })
-            else
-                ClearPedTasks(ped)
-                lib.notify({ title = 'Robbery', description = 'Cancelled', type = 'error' })
-            end
+        if state == 'looted' then
+            -- ALREADY ROBBED (resets on server/script restart)
+            lib.notify({ title = 'Robbery', description = 'This store has already been robbed!', type = 'error' })
+        
+        elseif state == 'open' then
+             -- LOOT PHASE - Check canRob first to validate
+            RSGCore.Functions.TriggerCallback('devchacha-robbery:server:canRob', function(canRob)
+                if not canRob then return end
+                
+                PlayAnimation(ped, "script_common@jail_cell@unlock@key", "action", -1, 1)
+                if lib.progressBar({
+                    duration = 5000,
+                    label = 'Grabbing Loot...',
+                    useWhileDead = false,
+                    canCancel = true,
+                    disable = { move = true, car = true, combat = true },
+                }) then
+                    ClearPedTasks(ped)
+                    TriggerServerEvent('devchacha-robbery:server:payout', {
+                        type = 'store',
+                        id = storeId,
+                        subId = regId,
+                        label = data.label,
+                        register = false
+                    })
+                else
+                    ClearPedTasks(ped)
+                    lib.notify({ title = 'Robbery', description = 'Cancelled', type = 'error' })
+                end
+            end, { type = 'store', id = storeId, subId = regId })
 
         elseif state == 'unlocking' then
              -- WAITING PHASE
@@ -66,10 +199,10 @@ local function RobStore(storeId, regId, data)
             RSGCore.Functions.TriggerCallback('devchacha-robbery:server:canRob', function(canRob)
                 if not canRob then return end
         
-                -- 2. Minigame (Lockpick)
+                -- Minigame (Lockpick) - lockpick is already consumed on server
                 local success = lib.skillCheck(Config.Difficulty.StoreRegister, {'e'})
                 if not success then
-                    lib.notify({ title = 'Robbery', description = 'You failed the lockpick!', type = 'error' })
+                    lib.notify({ title = 'Robbery', description = 'Lockpick broke! You need another one.', type = 'error' })
                     return 
                 end
         
@@ -97,7 +230,11 @@ local function RobBankVault(bankId, vaultId, data)
     local ped = PlayerPedId()
     
     RSGCore.Functions.TriggerCallback('devchacha-robbery:server:checkBankState', function(state, remaining)
-        if state == 'open' then
+        if state == 'looted' then
+            -- ALREADY ROBBED (resets on server/script restart)
+            lib.notify({ title = 'Robbery', description = 'This vault has already been robbed!', type = 'error' })
+        
+        elseif state == 'open' then
              -- LOOT PHASE
             RSGCore.Functions.TriggerCallback('devchacha-robbery:server:canRob', function(canRob)
                 if not canRob then return end
@@ -151,15 +288,15 @@ local function RobBankVault(bankId, vaultId, data)
                     -- Notify Player to Run
                     lib.notify({ 
                         title = 'DANGER', 
-                        description = 'Dynamite Active! MOVE! It\'s gonna BLAST in 5...', 
+                        description = 'Dynamite Active! MOVE! It\'s gonna BLAST in 15 seconds!', 
                         type = 'error',
-                        duration = 5000 
+                        duration = 15000 
                     })
     
                     -- Trigger Police Alert immediately upon planting
                     TriggerServerEvent('devchacha-robbery:server:policeAlert', data.label or 'Bank Vault')
     
-                    Wait(5000) -- Wait 5 Seconds as requested
+                    Wait(15000) -- Wait 15 Seconds before blast
                     
                     -- Tell server we blew it up -> Server triggers explosion for everyone
                     TriggerServerEvent('devchacha-robbery:server:setVaultState', bankId, vaultId, 'blown')
@@ -289,7 +426,7 @@ end)
 
 RegisterNetEvent('devchacha-robbery:client:policeAlert', function(locName)
     local alertMsg = string.format(Config.Text.PoliceAlert, locName)
-    lib.notify({ title = 'Police Alert', description = alertMsg, type = 'error', duration = 5000 })
+    lib.notify({ title = 'Police Alert', description = alertMsg, type = 'error', duration = 300000 })
     PlaySoundFrontend("Core_Fill_Up", "Consumption_Sounds", true, 0)
 end)
 
@@ -299,11 +436,11 @@ RegisterNetEvent('devchacha-robbery:client:syncExplosion', function(bankId, vaul
     if bankData and bankData.vaults and bankData.vaults[vaultId] then
         local pos = bankData.vaults[vaultId].coords
         
-        -- Create Explosion
+        -- Create Explosion Effect
         AddExplosion(pos.x, pos.y, pos.z, Config.Explosion.type, Config.Explosion.radius, true, false, 1.0)
         ShakeGameplayCam(Config.Explosion.cameraShake, Config.Explosion.shake)
         
-        -- Optional: Add particle effects or sound here if needed
-        lib.notify({ title = 'Robbery', description = 'Vault is open!', type = 'success' })
+        -- Notify (Timer is handled by global thread that reads GlobalState)
+        lib.notify({ title = 'BOOM!', description = 'Vault has been blown open! Cooling down...', type = 'success' })
     end
 end)
