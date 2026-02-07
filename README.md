@@ -2,7 +2,7 @@
 
 An advanced, optimized robbery system for **RSG-Core** (RedM) featuring stores and bank vaults with ox_lib integration.
 
-![DevChaCha Robbery System](images/banner.png)
+![DevChaCha Robbery System - Stores & Bank Vaults](images/banner.png)
 
 ---
 
@@ -41,6 +41,17 @@ An advanced, optimized robbery system for **RSG-Core** (RedM) featuring stores a
   ```lua
   Config.Police.Jobs = { 'sheriff', 'police', 'marshal', 'your_custom_job' }
   ```
+
+### 🎭 Roleplay & Immersion
+Designed specifically for high-quality RP servers:
+- **No Artificial Timers**: Locations stay robbed until server restart, making every robbery permanent for the session.
+- **Resource Management**: Tools (`lockpick`, `tnt`) are consumed on use, forcing criminals to prepare.
+- **Investigation Hooks**: 
+  - **Rare Loot**: Items like `confidential_ledger` and `railroad_bond` provide story hooks for law enforcement or rival gangs to recover.
+  - **Visual Evidence**: Bank explosions and broken safes leave a scene for investigators.
+- **Strategic Risks**: 
+  - 5-minute unlock timers force criminals to hold the location against police.
+  - No instant rewards - you must clear the area and wait.
 
 ---
 

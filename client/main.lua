@@ -431,15 +431,14 @@ RegisterNetEvent('devchacha-robbery:client:policeAlert', function(locName, coord
     PlaySoundFrontend("Core_Fill_Up", "Consumption_Sounds", true, 0)
     
     if coords then
-        -- Create Blip
-        local blip = N_0x554d9d53f696d002(1664425300, coords.x, coords.y, coords.z) -- 1664425300 = blip_style_enemy (red circle with skull or similar hostile indicator)
-        SetBlipSprite(blip, 1269399874, 1) -- Set sprite logic if needed, but style usually sets it
+        -- Create Blip (Style: Enemy/Hostile)
+        local blip = Citizen.InvokeNative(0x554d9d53f696d002, 1664425300, coords.x, coords.y, coords.z)
+        SetBlipSprite(blip, 1269399874, 1) -- Set sprite
         SetBlipScale(blip, 0.2)
-        SetBlipNameFromTextFile(blip, "Robbery in Progress")
         
-        -- Custom Blip Name
+        -- Set Blip Name
         local blipName = CreateVarString(10, 'LITERAL_STRING', locName)
-        _SetBlipName(blip, blipName)
+        Citizen.InvokeNative(0x9CB1A1623062F402, blip, blipName) -- _SET_BLIP_NAME_FROM_PLAYER_STRING
 
         -- Remove after 5 mins
         SetTimeout(300000, function()

@@ -355,14 +355,40 @@ end)
 
 RegisterNetEvent('devchacha-robbery:server:policeAlert', function(locName, coords)
     local players = RSGCore.Functions.GetRSGPlayers()
-    for _, src in pairs(players) do
-        local Player = RSGCore.Functions.GetPlayer(src)
+    
+    -- Fallback if RSG players list is invalid
+    if type(players) ~= 'table' then
+        players = GetPlayers() 
+    end
+
+    for _, v in pairs(players) do
+        local Player = nil
+        local src = nil
+
+        -- Handle return type variance (Source ID or Player Object)
+        if type(v) == 'table' then
+            -- v is the Player Object
+            Player = v
+            src = Player.PlayerData.source
+        else
+            -- v is the Source ID
+            src = tonumber(v)
+            Player = RSGCore.Functions.GetPlayer(src)
+        end
+        
         if Player then
             local job = Player.PlayerData.job.name
+            
             for _, pJob in ipairs(Config.Police.Jobs) do
                 if job == pJob then
                     TriggerClientEvent('devchacha-robbery:client:policeAlert', src, locName, coords)
                     Notify(src, string.format(Config.Text.PoliceAlert, locName), 'error')
+                    -- Fallback Chat Message
+                    TriggerClientEvent('chat:addMessage', src, {
+                        color = {255, 0, 0},
+                        multiline = true,
+                        args = {"[DISPATCH]", string.format(Config.Text.PoliceAlert, locName)}
+                    })
                 end
             end
         end
