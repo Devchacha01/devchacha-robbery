@@ -119,7 +119,9 @@ RegisterNetEvent('devchacha-robbery:server:startStoreRobbery', function(storeId,
     GlobalState.devchacha_robbery_states = currentStates
     
     Notify(src, 'Store lock mechanism disabled. Safe unlocking in ' .. Config.RobberyDuration .. ' minutes!', 'success')
-    TriggerEvent('devchacha-robbery:server:policeAlert', label or 'Store Robbery')
+    
+    local coords = Config.Stores[storeId].coords
+    TriggerEvent('devchacha-robbery:server:policeAlert', label or 'Store Robbery', coords)
 end)
 
 -----------------------------------------------------------------------
@@ -351,7 +353,7 @@ RegisterNetEvent('devchacha-robbery:server:payout', function(data)
     print('[devchacha-robbery] Payout complete for ' .. stateKey)
 end)
 
-RegisterNetEvent('devchacha-robbery:server:policeAlert', function(locName)
+RegisterNetEvent('devchacha-robbery:server:policeAlert', function(locName, coords)
     local players = RSGCore.Functions.GetRSGPlayers()
     for _, src in pairs(players) do
         local Player = RSGCore.Functions.GetPlayer(src)
@@ -359,8 +361,8 @@ RegisterNetEvent('devchacha-robbery:server:policeAlert', function(locName)
             local job = Player.PlayerData.job.name
             for _, pJob in ipairs(Config.Police.Jobs) do
                 if job == pJob then
-                    TriggerClientEvent('devchacha-robbery:client:policeAlert', src, locName)
-                    Notify(src, string.format(Config.Text.PoliceAlert, locName), 'inform')
+                    TriggerClientEvent('devchacha-robbery:client:policeAlert', src, locName, coords)
+                    Notify(src, string.format(Config.Text.PoliceAlert, locName), 'error')
                 end
             end
         end

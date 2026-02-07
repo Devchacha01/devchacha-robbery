@@ -40,6 +40,17 @@ rolex = { name = 'rolex', label = 'Pocket Watch', weight = 100, type = 'item', i
 gold_bar = { name = 'gold_bar', label = 'Gold Bar', weight = 1000, type = 'item', image = 'gold_bar.png', unique = false, useable = false, shouldClose = false, description = 'A solid gold bar worth a fortune' },
 diamond = { name = 'diamond', label = 'Diamond', weight = 50, type = 'item', image = 'diamond.png', unique = false, useable = false, shouldClose = false, description = 'A sparkling diamond of exceptional quality' },
 
+-- New Unique Bank Loot
+bearer_bond = { name = 'bearer_bond', label = 'Bearer Bond', weight = 10, type = 'item', image = 'bearer_bond.png', unique = false, useable = false, shouldClose = false, description = 'A valuable government bond' },
+gold_certificate = { name = 'gold_certificate', label = 'Gold Certificate', weight = 10, type = 'item', image = 'gold_certificate.png', unique = false, useable = false, shouldClose = false, description = 'Certificate redeemable for gold coin' },
+confidential_ledger = { name = 'confidential_ledger', label = 'Confidential Ledger', weight = 500, type = 'item', image = 'confidential_ledger.png', unique = false, useable = false, shouldClose = false, description = 'A heavy book containing secret financial records' },
+bank_draft = { name = 'bank_draft', label = 'Bank Draft', weight = 10, type = 'item', image = 'bank_draft.png', unique = false, useable = false, shouldClose = false, description = 'A draft for a large sum of money' },
+trust_deed = { name = 'trust_deed', label = 'Trust Deed', weight = 10, type = 'item', image = 'trust_deed.png', unique = false, useable = false, shouldClose = false, description = 'Deed to a valuable property' },
+railroad_bond = { name = 'railroad_bond', label = 'Railroad Bond', weight = 10, type = 'item', image = 'railroad_bond.png', unique = false, useable = false, shouldClose = false, description = 'Shares in the Cornwall Railroad' },
+shipping_manifest = { name = 'shipping_manifest', label = 'Shipping Manifest', weight = 10, type = 'item', image = 'shipping_manifest.png', unique = false, useable = false, shouldClose = false, description = 'Details of valuable cargo shipments' },
+antique_jewelry_box = { name = 'antique_jewelry_box', label = 'Antique Jewelry Box', weight = 200, type = 'item', image = 'antique_jewelry_box.png', unique = false, useable = false, shouldClose = false, description = 'A velvet lined box filled with jewels' },
+diamond_ring = { name = 'diamond_ring', label = 'Diamond Ring', weight = 50, type = 'item', image = 'diamond_ring.png', unique = false, useable = false, shouldClose = false, description = 'A ring with a large diamond' },
+
 
 -- =====================================================================
 -- HOW TO ADD THESE ITEMS:

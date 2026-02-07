@@ -61,7 +61,11 @@ An advanced, optimized robbery system for **RSG-Core** (RedM) featuring stores a
 3. **Add items** to `rsg-core/shared/items.lua`:
    - Open `devchacha-robbery/shared/items.lua` for reference
    - Copy the required items (`lockpick`, `tnt`) to your rsg-core items file
-   - Add reward items if you don't have them (`gold_ring`, `gold_bar`, `diamond`, `rolex`)
+   - Add reward items if you don't have them:
+     - `gold_ring`, `rolex` (store)
+     - `gold_bar`, `diamond`, `bearer_bond`, `gold_certificate`, `confidential_ledger` (bank)
+     - `railroad_bond`, `bank_draft`, `trust_deed`, `shipping_manifest` (bank)
+     - `antique_jewelry_box`, `diamond_ring` (bank)
 4. **Add images** to `rsg-inventory/html/images/`:
    - `lockpick.png`
    - `tnt.png`

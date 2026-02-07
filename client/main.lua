@@ -294,7 +294,8 @@ local function RobBankVault(bankId, vaultId, data)
                     })
     
                     -- Trigger Police Alert immediately upon planting
-                    TriggerServerEvent('devchacha-robbery:server:policeAlert', data.label or 'Bank Vault')
+                    local coords = Config.Banks[bankId].coords
+                    TriggerServerEvent('devchacha-robbery:server:policeAlert', data.label or 'Bank Vault', coords)
     
                     Wait(15000) -- Wait 15 Seconds before blast
                     
@@ -424,10 +425,29 @@ end)
 -- EVENTS
 -----------------------------------------------------------------------
 
-RegisterNetEvent('devchacha-robbery:client:policeAlert', function(locName)
+RegisterNetEvent('devchacha-robbery:client:policeAlert', function(locName, coords)
     local alertMsg = string.format(Config.Text.PoliceAlert, locName)
     lib.notify({ title = 'Police Alert', description = alertMsg, type = 'error', duration = 300000 })
     PlaySoundFrontend("Core_Fill_Up", "Consumption_Sounds", true, 0)
+    
+    if coords then
+        -- Create Blip
+        local blip = N_0x554d9d53f696d002(1664425300, coords.x, coords.y, coords.z) -- 1664425300 = blip_style_enemy (red circle with skull or similar hostile indicator)
+        SetBlipSprite(blip, 1269399874, 1) -- Set sprite logic if needed, but style usually sets it
+        SetBlipScale(blip, 0.2)
+        SetBlipNameFromTextFile(blip, "Robbery in Progress")
+        
+        -- Custom Blip Name
+        local blipName = CreateVarString(10, 'LITERAL_STRING', locName)
+        _SetBlipName(blip, blipName)
+
+        -- Remove after 5 mins
+        SetTimeout(300000, function()
+            if DoesBlipExist(blip) then
+                RemoveBlip(blip)
+            end
+        end)
+    end
 end)
 
 RegisterNetEvent('devchacha-robbery:client:syncExplosion', function(bankId, vaultId)

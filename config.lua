@@ -14,14 +14,15 @@ Config.Items = {
 Config.Police = {
     RequiredForStore = 0,
     RequiredForBank = 0, -- Set to 0 for testing, increase for production
-    Jobs = { 'sheriff', 'leo', 'police', 'marshal' }
+    -- Jobs that will receive ALERTS
+    Jobs = { 'sheriff', 'leo', 'police', 'marshal', 'robberytest' }
 }
 
 -- Robbery Behavior: Once robbed, locations stay looted until server/script restart
 -- No time-based cooldowns - this encourages one robbery per server session
 
-Config.RobberyDuration = 5 -- Minutes to wait before looting store
-Config.BankRobberyDuration = 10 -- Minutes to wait before looting bank
+Config.RobberyDuration = 2 -- Minutes to wait before looting store
+Config.BankRobberyDuration = 2 -- Minutes to wait before looting bank
 
 -- Minigame Difficulty (ox_lib skill check)
 Config.Difficulty = {
@@ -42,7 +43,16 @@ Config.Rewards = {
         minCash = 500, maxCash = 2000,
         items = {
             { name = 'gold_bar', amount = {1, 3}, chance = 100 },
-            { name = 'diamond', amount = {1, 2}, chance = 30 }
+            { name = 'diamond', amount = {1, 2}, chance = 30 },
+            { name = 'bearer_bond', amount = {1, 2}, chance = 40 },
+            { name = 'gold_certificate', amount = {1, 3}, chance = 40 },
+            { name = 'railroad_bond', amount = {1, 2}, chance = 35 },
+            { name = 'bank_draft', amount = 1, chance = 30 },
+            { name = 'trust_deed', amount = 1, chance = 25 },
+            { name = 'shipping_manifest', amount = 1, chance = 25 },
+            { name = 'antique_jewelry_box', amount = 1, chance = 20 },
+            { name = 'diamond_ring', amount = 1, chance = 30 },
+            { name = 'confidential_ledger', amount = 1, chance = 15 }, -- Rare drop
         }
     }
 }
