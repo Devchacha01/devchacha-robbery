@@ -430,10 +430,10 @@ RegisterNetEvent('devchacha-robbery:client:policeAlert', function(locName, coord
     lib.notify({ title = 'Police Alert', description = alertMsg, type = 'error', duration = 300000 })
     PlaySoundFrontend("Core_Fill_Up", "Consumption_Sounds", true, 0)
     
-    if coords then
+        if coords then
         -- Create Blip (Style: Enemy/Hostile)
         local blip = Citizen.InvokeNative(0x554d9d53f696d002, 1664425300, coords.x, coords.y, coords.z)
-        SetBlipSprite(blip, 1269399874, 1) -- Set sprite
+        SetBlipSprite(blip, 2125146709, 1) -- Set sprite to 'blip_mission_area_bounty'
         SetBlipScale(blip, 0.2)
         
         -- Set Blip Name
